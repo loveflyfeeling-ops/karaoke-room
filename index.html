@@ -109,7 +109,11 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
     <button class="btn primary" id="btnOnline">🔍 線上搜尋</button>
   </div>
   <div class="results grid" id="oresults"></div>
-  <div class="status" id="ostatus">後端：<span id="apiState">檢查中…</span></div>
+  <div class="row" style="align-items:center">
+    <span class="status" id="ostatus">後端：<span id="apiState">檢查中…</span></span>
+    <input type="text" id="apiUrl" placeholder="後端網址" style="max-width:260px;font-size:12px;padding:6px 10px">
+    <button class="btn" id="btnApi" style="padding:6px 10px;font-size:12px">套用</button>
+  </div>
 </div>
 
 <div class="console">
@@ -298,11 +302,14 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
   }
 
   // ---------- 線上搜尋（需啟動 server.py） ----------
-  const API='http://127.0.0.1:8765';
+  let API='http://127.0.0.1:8765';
+  try{ API=localStorage.getItem('karaokeApi')||API; }catch{}
+  $('apiUrl').value=API;
+  $('btnApi').onclick=()=>{ API=$('apiUrl').value.trim().replace(/\/+$/,'')||'http://127.0.0.1:8765'; $('apiUrl').value=API; try{localStorage.setItem('karaokeApi',API);}catch{} checkApi(); };
   let omode='karaoke';
   async function checkApi(){
     try{ const r=await fetch(API+'/'); if(!r.ok) throw 0; $('apiState').textContent='已連線 ✔'; $('apiState').style.color='var(--accent2)'; }
-    catch{ $('apiState').textContent='未啟動（請先執行 server.py）'; $('apiState').style.color='var(--accent)'; }
+    catch{ $('apiState').textContent='未連線（請先在電腦執行 server.py，或填入雲端後端網址）'; $('apiState').style.color='var(--accent)'; }
   }
   async function onlineSearch(){
     const q=$('oq').value.trim(); if(!q) return;
