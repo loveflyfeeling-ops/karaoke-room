@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>歡唱K歌房</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* 版面：上方 LED 式歌詞大螢幕，下方混音台控制列 */
+:root{
+  --bg:#0b0a12; --panel:#15131f; --panel2:#1d1a2b; --line:#2b2740;
+  --fg:#f3efff; --muted:#8e88a8;
+  --accent:#ff2e7e; --accent2:#2ee6ff; --gold:#ffd166;
+  --font:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:12px;display:flex;flex-direction:column;gap:12px;min-height:100%}
+h1{font-size:18px;margin:0;font-weight:900;letter-spacing:.08em;display:flex;align-items:center;gap:10px}
+h1 .tag{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.2em}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.btn{background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 14px;font:inherit;font-weight:500;cursor:pointer}
+.btn:hover{border-color:var(--accent2)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#ff6a3d);border:none;font-weight:700}
+.btn.on{border-color:var(--accent2);color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
+.btn:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+.btn:disabled{opacity:.4;cursor:default}
+.hidden-input{display:none}
+
+/* 歌詞螢幕 */
+.screen{flex:1;min-height:300px;background:radial-gradient(ellipse at 50% 0%,#2a1340 0%,#120f1c 55%,#0b0a12 100%);
+  border:1px solid var(--line);border-radius:18px;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.screen .title{padding:12px 18px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
+.screen .title b{color:var(--fg);font-size:16px}
+.lyrics{flex:1;overflow:hidden;position:relative;padding:0 18px}
+.lyrics .track{position:absolute;left:0;right:0;top:50%;transition:transform .35s cubic-bezier(.2,.8,.2,1);padding:0 18px}
+@media (prefers-reduced-motion:reduce){.lyrics .track{transition:none}}
+.line{font-size:clamp(20px,4.5vw,34px);font-weight:500;line-height:1.5;padding:6px 0;text-align:center;color:var(--muted);opacity:.55;transition:all .3s;text-wrap:balance}
+.line.now{color:var(--gold);opacity:1;font-weight:900;text-shadow:0 0 18px rgba(255,209,102,.45);transform:scale(1.04)}
+.line.next{opacity:.85;color:var(--fg)}
+.lyrics .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);text-align:center;padding:20px;line-height:1.8}
+.countdown{position:absolute;top:14px;right:18px;font-size:13px;color:var(--accent2);letter-spacing:.2em}
+
+/* 進度條 */
+.progress{display:flex;align-items:center;gap:10px;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)}
+.progress input[type=range]{flex:1;accent-color:var(--accent)}
+
+/* 控制台 */
+.console{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.card h2{margin:0;font-size:12px;letter-spacing:.2em;color:var(--muted);font-weight:500}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row.main{gap:10px}
+.key{font-size:36px;font-weight:900;font-variant-numeric:tabular-nums;color:var(--accent2);min-width:84px;text-align:center;line-height:1}
+.key small{display:block;font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.2em;margin-top:4px}
+.round{width:44px;height:44px;border-radius:50%;padding:0;font-size:22px;font-weight:700}
+.row input[type=range]{width:100%;accent-color:var(--accent2)}
+label.sl{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;width:100%}
+input[type=text]{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 12px;font:inherit}
+textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 12px;font:inherit;font-size:13px;resize:vertical}
+.results{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow:auto}
+.results button{text-align:left;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;cursor:pointer}
+.results button:hover{border-color:var(--gold)}
+.results button span{color:var(--muted);font-size:12px;display:block}
+.results.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));max-height:260px}
+.results.grid button{display:flex;gap:10px;align-items:center}
+.results.grid img{width:72px;height:40px;object-fit:cover;border-radius:6px;flex:none;background:#000}
+.results.grid b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.results.grid div{min-width:0}
+.hint{font-size:12px;color:var(--muted);line-height:1.6}
+.status{font-size:12px;color:var(--accent2);min-height:1.2em}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🎤 歡唱K歌房 <span class="tag">STEP 1 · 播放器雛型</span></h1>
+  <div class="row">
+    <button class="btn primary" id="btnOpen">📂 載入歌曲（mp3 / m4a / wav）</button>
+    <input type="file" id="fileAudio" class="hidden-input" accept="audio/*">
+    <input type="file" id="fileLrc" class="hidden-input" accept=".lrc,.txt">
+  </div>
+</div>
+
+<section class="screen">
+  <div class="title"><div><b id="songTitle">尚未載入歌曲</b> <span id="songArtist"></span></div><div id="keyBadge">原調</div></div>
+  <div class="lyrics">
+    <div class="countdown" id="countdown"></div>
+    <div class="empty" id="lyricsEmpty">先載入一首歌，再從下方「歌詞」區搜尋或貼上 LRC 同步歌詞，<br>歌詞就會跟著音樂逐句提示。</div>
+    <div class="track" id="track"></div>
+  </div>
+</section>
+
+<div class="progress">
+  <span id="tCur">0:00</span>
+  <input type="range" id="seek" min="0" max="1000" value="0">
+  <span id="tDur">0:00</span>
+</div>
+
+<div class="card" id="onlineCard">
+  <h2>線上搜尋歌曲</h2>
+  <div class="row">
+    <input type="text" id="oq" placeholder="輸入歌名或歌手，直接線上找歌">
+    <button class="btn" id="modeSong">原曲</button>
+    <button class="btn on" id="modeKtv">伴奏</button>
+    <button class="btn primary" id="btnOnline">🔍 線上搜尋</button>
+  </div>
+  <div class="results grid" id="oresults"></div>
+  <div class="status" id="ostatus">後端：<span id="apiState">檢查中…</span></div>
+</div>
+
+<div class="console">
+  <div class="card">
+    <h2>播放</h2>
+    <div class="row main">
+      <button class="btn round primary" id="btnPlay" disabled>▶</button>
+      <button class="btn" id="btnStop" disabled>■ 停止</button>
+      <button class="btn" id="btnBack" disabled>↺ 5秒</button>
+    </div>
+    <label class="sl"><span>伴奏音量</span><span id="volVal">100%</span></label>
+    <div class="row"><input type="range" id="vol" min="0" max="100" value="100"></div>
+    <div class="status" id="status">等待載入歌曲</div>
+  </div>
+
+  <div class="card">
+    <h2>升降 KEY</h2>
+    <div class="row main" style="justify-content:center">
+      <button class="btn round" id="keyDown">－</button>
+      <div class="key" id="keyNum">0<small>半音</small></div>
+      <button class="btn round" id="keyUp">＋</button>
+    </div>
+    <div class="row" style="justify-content:center">
+      <button class="btn" id="keyReset">原調</button>
+      <button class="btn" data-preset="-5" id="presetMale">♂ 男生唱女歌（－5）</button>
+      <button class="btn" data-preset="5" id="presetFemale">♀ 女生唱男歌（＋5）</button>
+    </div>
+    <div class="hint">速度不變，只改音高。範圍 ±12 半音；超過 ±6 音質會開始變化。</div>
+  </div>
+
+  <div class="card">
+    <h2>歌詞</h2>
+    <div class="row">
+      <input type="text" id="q" placeholder="歌名 歌手（例：告白氣球 周杰倫）">
+      <button class="btn" id="btnSearch">🔍 搜尋</button>
+    </div>
+    <div class="results" id="results"></div>
+    <div class="row">
+      <button class="btn" id="btnLoadLrc">📄 載入 .lrc 檔</button>
+      <button class="btn" id="btnPaste">✏ 貼上 LRC</button>
+      <button class="btn" id="btnOffsetM">歌詞提早 0.5s</button>
+      <button class="btn" id="btnOffsetP">歌詞延後 0.5s</button>
+    </div>
+    <textarea id="lrcText" hidden placeholder="[00:12.34]第一句歌詞&#10;[00:18.90]第二句歌詞"></textarea>
+    <div class="status" id="lrcStatus">歌詞來源：lrclib.net（免費同步歌詞庫）</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let player=null, shifter=null, buffer=null, duration=0;
+  let playing=false, startedAt=0, offset=0, semitones=0, lyricOffset=0;
+  let lyrics=[]; // {t, text}
+  let lastIdx=-1;
+
+  // ---------- 音訊 ----------
+  async function ensureGraph(){
+    await Tone.start();
+    if(!shifter){
+      shifter = new Tone.PitchShift({pitch:0, windowSize:0.1, delayTime:0, feedback:0}).toDestination();
+    }
+  }
+  async function loadAudio(file, meta){
+    await ensureGraph();
+    stop();
+    $('status').textContent='解碼中…';
+    const arr = await file.arrayBuffer();
+    if(meta){ file = {name: meta}; }
+    const ab = await Tone.getContext().rawContext.decodeAudioData(arr);
+    buffer = new Tone.ToneAudioBuffer(ab);
+    duration = ab.duration;
+    if(player){ player.dispose(); }
+    player = new Tone.Player(buffer).connect(shifter);
+    player.volume.value = Tone.gainToDb($('vol').value/100);
+    const name = file.name.replace(/\.[^.]+$/,'');
+    const parts = name.split(/\s*[-–_]\s*/);
+    $('songTitle').textContent = parts.length>1 ? parts.slice(1).join(' - ') : name;
+    $('songArtist').textContent = parts.length>1 ? '／ '+parts[0] : '';
+    if(!$('q').value) $('q').value = parts.join(' ');
+    $('tDur').textContent = fmt(duration);
+    ['btnPlay','btnStop','btnBack'].forEach(id=>$(id).disabled=false);
+    $('status').textContent='已載入，按 ▶ 開始';
+    offset=0; updateProgress();
+  }
+  function play(){
+    if(!player||playing) return;
+    if(offset>=duration) offset=0;
+    player.start(Tone.now(), offset);
+    startedAt = Tone.now();
+    playing=true; $('btnPlay').textContent='❚❚'; $('status').textContent='播放中';
+    tick();
+  }
+  function pause(){
+    if(!playing) return;
+    offset = currentTime();
+    player.stop(); playing=false; $('btnPlay').textContent='▶'; $('status').textContent='已暫停';
+  }
+  function stop(){
+    if(player&&playing) player.stop();
+    playing=false; offset=0; $('btnPlay').textContent='▶';
+    if(player) $('status').textContent='已停止';
+    lastIdx=-1; updateProgress(); renderLyrics(0);
+  }
+  function seekTo(t){
+    const was=playing; if(was) player.stop();
+    offset=Math.max(0,Math.min(duration,t)); playing=false;
+    if(was) play(); else {updateProgress(); renderLyrics(offset);}
+  }
+  function currentTime(){ return playing ? offset + (Tone.now()-startedAt) : offset; }
+
+  function tick(){
+    if(!playing) return;
+    const t=currentTime();
+    if(t>=duration){ stop(); return; }
+    updateProgress(t); renderLyrics(t);
+    requestAnimationFrame(tick);
+  }
+  function updateProgress(t=currentTime()){
+    $('tCur').textContent=fmt(t);
+    if(!seekDragging) $('seek').value = duration? Math.round(t/duration*1000):0;
+  }
+  const fmt = s => { s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+
+  // ---------- Key ----------
+  function setKey(n){
+    semitones=Math.max(-12,Math.min(12,n));
+    if(shifter) shifter.pitch=semitones;
+    $('keyNum').firstChild.textContent = (semitones>0?'+':'')+semitones;
+    $('keyBadge').textContent = semitones===0?'原調':'KEY '+(semitones>0?'+':'')+semitones;
+    $('presetMale').classList.toggle('on',semitones===-5);
+    $('presetFemale').classList.toggle('on',semitones===5);
+  }
+
+  // ---------- 歌詞 ----------
+  function parseLRC(text){
+    const out=[]; const re=/\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
+    text.split(/\r?\n/).forEach(line=>{
+      const times=[]; let m; re.lastIndex=0;
+      while((m=re.exec(line))) times.push(+m[1]*60 + +m[2] + (m[3]? +m[3].padEnd(3,'0')/1000:0));
+      const txt=line.replace(re,'').trim();
+      if(times.length && txt) times.forEach(t=>out.push({t,text:txt}));
+    });
+    return out.sort((a,b)=>a.t-b.t);
+  }
+  function setLyrics(text, from){
+    lyrics=parseLRC(text);
+    $('lyricsEmpty').hidden = lyrics.length>0;
+    const track=$('track'); track.innerHTML='';
+    lyrics.forEach(l=>{ const d=document.createElement('div'); d.className='line'; d.textContent=l.text; track.appendChild(d); });
+    lastIdx=-1; renderLyrics(currentTime());
+    $('lrcStatus').textContent = lyrics.length? `已載入 ${lyrics.length} 句同步歌詞（${from}）` : '找不到含時間標記的歌詞，請確認 LRC 格式';
+  }
+  function renderLyrics(t){
+    if(!lyrics.length) return;
+    t += lyricOffset;
+    let idx=-1; for(let i=0;i<lyrics.length;i++){ if(lyrics[i].t<=t) idx=i; else break; }
+    const next = lyrics[idx+1];
+    $('countdown').textContent = (next && next.t-t>1.5 && next.t-t<6) ? '● '.repeat(Math.ceil(next.t-t)) : '';
+    if(idx===lastIdx) return;
+    lastIdx=idx;
+    const lines=$('track').children;
+    for(let i=0;i<lines.length;i++){ lines[i].className='line'+(i===idx?' now':i===idx+1?' next':''); }
+    const target=lines[Math.max(0,idx)];
+    const y = target ? target.offsetTop + target.offsetHeight/2 : 0;
+    $('track').style.transform=`translateY(${-y}px)`;
+  }
+  async function searchLyrics(){
+    const q=$('q').value.trim(); if(!q) return;
+    $('results').innerHTML=''; $('lrcStatus').textContent='搜尋中…';
+    try{
+      const r=await fetch('https://lrclib.net/api/search?q='+encodeURIComponent(q));
+      const list=(await r.json()).filter(x=>x.syncedLyrics);
+      if(!list.length){ $('lrcStatus').textContent='找不到同步歌詞，可改用「貼上 LRC」'; return; }
+      $('lrcStatus').textContent=`找到 ${list.length} 筆，點選套用`;
+      list.slice(0,10).forEach(x=>{
+        const b=document.createElement('button');
+        b.innerHTML=`<b></b><span></span>`;
+        b.querySelector('b').textContent=`${x.trackName}`;
+        b.querySelector('span').textContent=`${x.artistName} · ${x.albumName||''} · ${fmt(x.duration||0)}`;
+        b.onclick=()=>{ setLyrics(x.syncedLyrics,'lrclib'); $('results').innerHTML=''; };
+        $('results').appendChild(b);
+      });
+    }catch(e){ $('lrcStatus').textContent='連線失敗（請確認網路，或直接貼上 LRC）'; }
+  }
+
+  // ---------- 線上搜尋（需啟動 server.py） ----------
+  const API='http://127.0.0.1:8765';
+  let omode='karaoke';
+  async function checkApi(){
+    try{ const r=await fetch(API+'/'); if(!r.ok) throw 0; $('apiState').textContent='已連線 ✔'; $('apiState').style.color='var(--accent2)'; }
+    catch{ $('apiState').textContent='未啟動（請先執行 server.py）'; $('apiState').style.color='var(--accent)'; }
+  }
+  async function onlineSearch(){
+    const q=$('oq').value.trim(); if(!q) return;
+    $('oresults').innerHTML=''; $('ostatus').textContent='搜尋中…';
+    try{
+      const list=await (await fetch(`${API}/api/search?q=${encodeURIComponent(q)}&mode=${omode}`)).json();
+      $('ostatus').textContent=`找到 ${list.length} 首，點選載入`;
+      list.forEach(x=>{
+        const b=document.createElement('button');
+        const img=document.createElement('img'); img.src=x.thumb; img.alt='';
+        const d=document.createElement('div');
+        const t=document.createElement('b'); t.textContent=x.title;
+        const s=document.createElement('span'); s.textContent=`${x.channel} · ${x.duration}`;
+        d.append(t,s); b.append(img,d);
+        b.onclick=()=>loadOnline(x);
+        $('oresults').appendChild(b);
+      });
+    }catch{ $('ostatus').textContent='搜尋失敗：後端未啟動或網路問題'; }
+  }
+  async function loadOnline(x){
+    $('ostatus').textContent=`⬇ 抓取「${x.title}」中，請稍候…`;
+    try{
+      let st=(await (await fetch(`${API}/api/fetch/${x.id}`)).json()).status;
+      let dots=0;
+      while(st==='downloading'){
+        await new Promise(r=>setTimeout(r,1500)); dots=(dots+1)%4;
+        $('ostatus').textContent='⬇ 抓取中'+'.'.repeat(dots+1);
+        st=(await (await fetch(`${API}/api/status/${x.id}`)).json()).status;
+      }
+      if(st!=='done') throw new Error(st);
+      const blob=await (await fetch(`${API}/api/audio/${x.id}`)).blob();
+      await loadAudio(blob, x.title);
+      $('ostatus').textContent='✔ 已載入：'+x.title;
+      const clean=x.title.replace(/[\(\[【（].*?[\)\]】）]/g,'').replace(/伴奏|KTV|karaoke|instrumental|官方|MV|Official|Video|HD|4K/gi,'').replace(/\s+/g,' ').trim();
+      $('q').value=clean; searchLyrics();
+    }catch(e){ $('ostatus').textContent='抓取失敗：'+(e.message||e); }
+  }
+  $('btnOnline').onclick=onlineSearch;
+  $('oq').onkeydown=e=>{ if(e.key==='Enter') onlineSearch(); };
+  $('modeSong').onclick=()=>{ omode='song'; $('modeSong').classList.add('on'); $('modeKtv').classList.remove('on'); };
+  $('modeKtv').onclick=()=>{ omode='karaoke'; $('modeKtv').classList.add('on'); $('modeSong').classList.remove('on'); };
+  checkApi();
+
+  // ---------- 事件 ----------
+  let seekDragging=false;
+  $('btnOpen').onclick=()=>$('fileAudio').click();
+  $('fileAudio').onchange=e=>{ if(e.target.files[0]) loadAudio(e.target.files[0]); };
+  $('btnPlay').onclick=()=> playing?pause():play();
+  $('btnStop').onclick=stop;
+  $('btnBack').onclick=()=>seekTo(currentTime()-5);
+  $('seek').oninput=()=>{ seekDragging=true; $('tCur').textContent=fmt($('seek').value/1000*duration); };
+  $('seek').onchange=()=>{ seekDragging=false; seekTo($('seek').value/1000*duration); };
+  $('vol').oninput=()=>{ $('volVal').textContent=$('vol').value+'%'; if(player) player.volume.value=Tone.gainToDb($('vol').value/100); };
+  $('keyUp').onclick=()=>setKey(semitones+1);
+  $('keyDown').onclick=()=>setKey(semitones-1);
+  $('keyReset').onclick=()=>setKey(0);
+  $('presetMale').onclick=()=>setKey(semitones===-5?0:-5);
+  $('presetFemale').onclick=()=>setKey(semitones===5?0:5);
+  $('btnSearch').onclick=searchLyrics;
+  $('q').onkeydown=e=>{ if(e.key==='Enter') searchLyrics(); };
+  $('btnLoadLrc').onclick=()=>$('fileLrc').click();
+  $('fileLrc').onchange=async e=>{ const f=e.target.files[0]; if(f) setLyrics(await f.text(), f.name); };
+  $('btnPaste').onclick=()=>{ const ta=$('lrcText'); ta.hidden=!ta.hidden; if(!ta.hidden) ta.focus(); };
+  $('lrcText').oninput=()=>setLyrics($('lrcText').value,'手動貼上');
+  $('btnOffsetM').onclick=()=>{ lyricOffset+=0.5; lastIdx=-1; renderLyrics(currentTime()); $('lrcStatus').textContent=`歌詞偏移 ${lyricOffset>0?'+':''}${lyricOffset.toFixed(1)}s`; };
+  $('btnOffsetP').onclick=()=>{ lyricOffset-=0.5; lastIdx=-1; renderLyrics(currentTime()); $('lrcStatus').textContent=`歌詞偏移 ${lyricOffset>0?'+':''}${lyricOffset.toFixed(1)}s`; };
+  document.addEventListener('keydown',e=>{
+    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+    if(e.code==='Space'){ e.preventDefault(); if(player) playing?pause():play(); }
+    if(e.key==='ArrowUp') setKey(semitones+1);
+    if(e.key==='ArrowDown') setKey(semitones-1);
+  });
+  setKey(0);
+})();
+</script>
+</body>
+</html>
