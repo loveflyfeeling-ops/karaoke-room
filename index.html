@@ -35,7 +35,11 @@ h1 .tag{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.2em}
   border:1px solid var(--line);border-radius:18px;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .screen .title{padding:12px 18px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
 .screen .title b{color:var(--fg);font-size:16px}
-.lyrics{flex:1;overflow:hidden;position:relative;padding:0 18px}
+.ytwrap{position:relative;width:100%;background:#000;flex:none;display:flex;justify-content:center;border-bottom:1px solid var(--line)}
+.ytwrap[hidden]{display:none}
+.ytwrap .inner{position:relative;width:min(100%,calc(42vh*16/9));aspect-ratio:16/9;max-height:42vh}
+.ytwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.lyrics{flex:1;overflow:hidden;position:relative;padding:0 18px;min-height:90px}
 .lyrics .track{position:absolute;left:0;right:0;top:50%;transition:transform .35s cubic-bezier(.2,.8,.2,1);padding:0 18px}
 @media (prefers-reduced-motion:reduce){.lyrics .track{transition:none}}
 .line{font-size:clamp(20px,4.5vw,34px);font-weight:500;line-height:1.5;padding:6px 0;text-align:center;color:var(--muted);opacity:.55;transition:all .3s;text-wrap:balance}
@@ -59,7 +63,7 @@ h1 .tag{font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.2em}
 .round{width:44px;height:44px;border-radius:50%;padding:0;font-size:22px;font-weight:700}
 .row input[type=range]{width:100%;accent-color:var(--accent2)}
 label.sl{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;width:100%}
-input[type=text]{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 12px;font:inherit}
+input[type=text],input[type=password]{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 12px;font:inherit}
 textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:9px 12px;font:inherit;font-size:13px;resize:vertical}
 .results{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow:auto}
 .results button{text-align:left;background:var(--panel2);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;cursor:pointer}
@@ -71,13 +75,15 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
 .results.grid b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .results.grid div{min-width:0}
 .hint{font-size:12px;color:var(--muted);line-height:1.6}
+.hint a{color:var(--accent2)}
 .status{font-size:12px;color:var(--accent2);min-height:1.2em}
+.ytkeyrow[hidden]{display:none}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <h1>🎤 歡唱K歌房 <span class="tag">STEP 1 · 播放器雛型</span></h1>
+  <h1>🎤 歡唱K歌房 <span class="tag">STEP 2 · 線上點歌</span></h1>
   <div class="row">
     <button class="btn primary" id="btnOpen">📂 載入歌曲（mp3 / m4a / wav）</button>
     <input type="file" id="fileAudio" class="hidden-input" accept="audio/*">
@@ -87,9 +93,10 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
 
 <section class="screen">
   <div class="title"><div><b id="songTitle">尚未載入歌曲</b> <span id="songArtist"></span></div><div id="keyBadge">原調</div></div>
+  <div class="ytwrap" id="ytWrap" hidden><div class="inner"><div id="ytPlayer"></div></div></div>
   <div class="lyrics">
     <div class="countdown" id="countdown"></div>
-    <div class="empty" id="lyricsEmpty">先載入一首歌，再從下方「歌詞」區搜尋或貼上 LRC 同步歌詞，<br>歌詞就會跟著音樂逐句提示。</div>
+    <div class="empty" id="lyricsEmpty">先從下方「線上搜尋」點一首歌，或載入自己的音檔，<br>再搜尋同步歌詞，歌詞就會跟著音樂逐句提示。</div>
     <div class="track" id="track"></div>
   </div>
 </section>
@@ -110,9 +117,23 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
   </div>
   <div class="results grid" id="oresults"></div>
   <div class="row" style="align-items:center">
-    <span class="status" id="ostatus">後端：<span id="apiState">檢查中…</span></span>
-    <input type="text" id="apiUrl" placeholder="後端網址" style="max-width:260px;font-size:12px;padding:6px 10px">
-    <button class="btn" id="btnApi" style="padding:6px 10px;font-size:12px">套用</button>
+    <span class="status" id="apiState">檢查中…</span>
+  </div>
+  <div class="row" style="align-items:center">
+    <span class="status" id="ostatus"></span>
+  </div>
+  <div class="row ytkeyrow" id="ytKeyRow" hidden>
+    <input type="password" id="ytKey" placeholder="貼上 YouTube Data API 金鑰（AIza 開頭）" style="max-width:320px;font-size:12px;padding:6px 10px" autocomplete="off">
+    <button class="btn" id="btnYtKey" style="padding:6px 10px;font-size:12px">儲存金鑰</button>
+    <span class="hint">免費申請：Google Cloud Console → 啟用 YouTube Data API v3 → 建立 API 金鑰（只存在這台裝置的瀏覽器裡）</span>
+  </div>
+  <div class="row" style="align-items:center">
+    <button class="btn" id="btnToggleAdv" style="padding:6px 10px;font-size:12px">⚙ 進階設定</button>
+    <span class="advrow" id="advRow" hidden style="display:flex;gap:8px;flex:1;align-items:center">
+      <input type="text" id="apiUrl" placeholder="後端網址（選用）" style="max-width:240px;font-size:12px;padding:6px 10px">
+      <button class="btn" id="btnApi" style="padding:6px 10px;font-size:12px">套用</button>
+      <button class="btn" id="btnYtKeyShow" style="padding:6px 10px;font-size:12px">更改 YouTube 金鑰</button>
+    </span>
   </div>
 </div>
 
@@ -141,7 +162,7 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
       <button class="btn" data-preset="-5" id="presetMale">♂ 男生唱女歌（－5）</button>
       <button class="btn" data-preset="5" id="presetFemale">♀ 女生唱男歌（＋5）</button>
     </div>
-    <div class="hint">速度不變，只改音高。範圍 ±12 半音；超過 ±6 音質會開始變化。</div>
+    <div class="hint" id="keyHint">速度不變，只改音高。範圍 ±12 半音；超過 ±6 音質會開始變化。</div>
   </div>
 
   <div class="card">
@@ -170,8 +191,9 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
   let playing=false, startedAt=0, offset=0, semitones=0, lyricOffset=0;
   let lyrics=[]; // {t, text}
   let lastIdx=-1;
+  let ytMode=false, yt=null, ytReadyQueue=[], ytApiLoading=false;
 
-  // ---------- 音訊 ----------
+  // ---------- 音訊（本機檔案 / 後端抓回的音檔：完整功能） ----------
   async function ensureGraph(){
     await Tone.start();
     if(!shifter){
@@ -179,6 +201,7 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
     }
   }
   async function loadAudio(file, meta){
+    exitYt();
     await ensureGraph();
     stop();
     $('status').textContent='解碼中…';
@@ -201,6 +224,7 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
     offset=0; updateProgress();
   }
   function play(){
+    if(ytMode){ if(yt&&yt.playVideo) yt.playVideo(); return; }
     if(!player||playing) return;
     if(offset>=duration) offset=0;
     player.start(Tone.now(), offset);
@@ -209,27 +233,33 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
     tick();
   }
   function pause(){
+    if(ytMode){ if(yt&&yt.pauseVideo) yt.pauseVideo(); return; }
     if(!playing) return;
     offset = currentTime();
     player.stop(); playing=false; $('btnPlay').textContent='▶'; $('status').textContent='已暫停';
   }
   function stop(){
+    if(ytMode){ if(yt&&yt.seekTo){ yt.seekTo(0,true); yt.pauseVideo(); } playing=false; $('btnPlay').textContent='▶'; $('status').textContent='已停止'; lastIdx=-1; updateProgress(0); renderLyrics(0); return; }
     if(player&&playing) player.stop();
     playing=false; offset=0; $('btnPlay').textContent='▶';
     if(player) $('status').textContent='已停止';
     lastIdx=-1; updateProgress(); renderLyrics(0);
   }
   function seekTo(t){
+    if(ytMode){ if(yt&&yt.seekTo) yt.seekTo(Math.max(0,Math.min(duration||0,t)),true); lastIdx=-1; return; }
     const was=playing; if(was) player.stop();
     offset=Math.max(0,Math.min(duration,t)); playing=false;
     if(was) play(); else {updateProgress(); renderLyrics(offset);}
   }
-  function currentTime(){ return playing ? offset + (Tone.now()-startedAt) : offset; }
+  function currentTime(){
+    if(ytMode) return (yt&&yt.getCurrentTime)? yt.getCurrentTime():0;
+    return playing ? offset + (Tone.now()-startedAt) : offset;
+  }
 
   function tick(){
     if(!playing) return;
     const t=currentTime();
-    if(t>=duration){ stop(); return; }
+    if(!ytMode && t>=duration){ stop(); return; }
     updateProgress(t); renderLyrics(t);
     requestAnimationFrame(tick);
   }
@@ -241,6 +271,7 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
 
   // ---------- Key ----------
   function setKey(n){
+    if(ytMode){ $('keyHint').textContent='YouTube 內嵌播放無法變調；想換 Key 可搜「歌名 伴奏 降Key」，或啟動後端用完整功能。'; return; }
     semitones=Math.max(-12,Math.min(12,n));
     if(shifter) shifter.pitch=semitones;
     $('keyNum').firstChild.textContent = (semitones>0?'+':'')+semitones;
@@ -300,34 +331,140 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
       });
     }catch(e){ $('lrcStatus').textContent='連線失敗（請確認網路，或直接貼上 LRC）'; }
   }
+  function autoLyrics(title){
+    const clean=title.replace(/[\(\[【（].*?[\)\]】）]/g,'').replace(/伴奏|KTV|karaoke|instrumental|官方|MV|Official|Video|Lyric|HD|4K/gi,'').replace(/\s+/g,' ').trim();
+    if(clean){ $('q').value=clean; searchLyrics(); }
+  }
 
-  // ---------- 線上搜尋（需啟動 server.py） ----------
-  let API='http://127.0.0.1:8765';
+  // ---------- YouTube 內嵌模式（不需後端） ----------
+  let YTKEY='';
+  try{ YTKEY=localStorage.getItem('karaokeYtKey')||''; }catch{}
+  function loadYtApi(cb){
+    if(window.YT&&window.YT.Player){ cb(); return; }
+    ytReadyQueue.push(cb);
+    if(ytApiLoading) return;
+    ytApiLoading=true;
+    window.onYouTubeIframeAPIReady=()=>{ ytReadyQueue.forEach(f=>f()); ytReadyQueue=[]; };
+    const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+  }
+  function exitYt(){
+    if(!ytMode) return;
+    ytMode=false; playing=false;
+    if(yt&&yt.stopVideo) try{yt.stopVideo();}catch{}
+    $('ytWrap').hidden=true;
+    $('keyHint').textContent='速度不變，只改音高。範圍 ±12 半音；超過 ±6 音質會開始變化。';
+    $('keyBadge').textContent='原調'; semitones=0; if(shifter) shifter.pitch=0;
+    $('keyNum').firstChild.textContent='0';
+  }
+  function playYt(x){
+    if(player&&playing){ player.stop(); }
+    playing=false; ytMode=true;
+    $('ytWrap').hidden=false;
+    $('songTitle').textContent=x.title;
+    $('songArtist').textContent=x.channel? '／ '+x.channel:'';
+    $('keyBadge').textContent='YouTube 模式';
+    $('status').textContent='YouTube 載入中…';
+    ['btnPlay','btnStop','btnBack'].forEach(id=>$(id).disabled=false);
+    loadYtApi(()=>{
+      if(yt){ yt.loadVideoById(x.id); }
+      else{
+        yt=new YT.Player('ytPlayer',{
+          videoId:x.id,
+          playerVars:{autoplay:1, playsinline:1, rel:0, modestbranding:1},
+          events:{
+            onReady:e=>{ e.target.setVolume(+$('vol').value); e.target.playVideo(); },
+            onStateChange:e=>{
+              if(!ytMode) return;
+              if(e.data===YT.PlayerState.PLAYING){
+                duration=yt.getDuration()||0; $('tDur').textContent=fmt(duration);
+                playing=true; $('btnPlay').textContent='❚❚'; $('status').textContent='播放中（YouTube）';
+                tick();
+              }else if(e.data===YT.PlayerState.PAUSED){
+                playing=false; $('btnPlay').textContent='▶'; $('status').textContent='已暫停';
+              }else if(e.data===YT.PlayerState.ENDED){
+                playing=false; $('btnPlay').textContent='▶'; $('status').textContent='播放完畢';
+              }
+            },
+            onError:e=>{ $('status').textContent='這部影片不允許站外播放（錯誤 '+e.data+'），請改選其他結果'; }
+          }
+        });
+      }
+      if(yt&&yt.setVolume) try{yt.setVolume(+$('vol').value);}catch{}
+    });
+    autoLyrics(x.title);
+    $('ostatus').textContent='▶ YouTube 內嵌播放：'+x.title;
+  }
+  const decodeEntities=s=>{ const ta=document.createElement('textarea'); ta.innerHTML=s||''; return ta.value; };
+  const isoDur=d=>{ const m=/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(d||''); if(!m) return ''; const sec=(+m[1]||0)*3600+(+m[2]||0)*60+(+m[3]||0); return fmt(sec); };
+  async function ytSearch(q){
+    const query = omode==='song'? q : q+' 伴奏 KTV karaoke instrumental';
+    const r=await fetch('https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=12&q='+encodeURIComponent(query)+'&key='+encodeURIComponent(YTKEY));
+    const j=await r.json();
+    if(j.error) throw new Error(j.error.errors&&j.error.errors[0]&&j.error.errors[0].reason==='quotaExceeded' ? '今日搜尋額度已用完，明天會自動恢復' : (j.error.message||'金鑰無效'));
+    const items=(j.items||[]).filter(i=>i.id&&i.id.videoId);
+    let durs={};
+    try{
+      const ids=items.map(i=>i.id.videoId).join(',');
+      if(ids){ const v=await (await fetch('https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id='+ids+'&key='+encodeURIComponent(YTKEY))).json();
+        (v.items||[]).forEach(it=>durs[it.id]=isoDur(it.contentDetails&&it.contentDetails.duration)); }
+    }catch{}
+    return items.map(i=>({
+      id:i.id.videoId,
+      title:decodeEntities(i.snippet.title),
+      channel:decodeEntities(i.snippet.channelTitle),
+      duration:durs[i.id.videoId]||'',
+      thumb:(i.snippet.thumbnails&&(i.snippet.thumbnails.medium||i.snippet.thumbnails.default)||{}).url||('https://i.ytimg.com/vi/'+i.id.videoId+'/mqdefault.jpg'),
+    }));
+  }
+  function saveYtKey(){
+    const k=$('ytKey').value.trim();
+    if(!k){ $('apiState').textContent='請先貼上金鑰'; return; }
+    YTKEY=k; try{localStorage.setItem('karaokeYtKey',k);}catch{}
+    $('ytKeyRow').hidden=true; refreshState();
+  }
+
+  // ---------- 線上搜尋（後端優先，其次 YouTube 內嵌） ----------
+  let API='http://127.0.0.1:8765', backendOK=false;
   try{ API=localStorage.getItem('karaokeApi')||API; }catch{}
   $('apiUrl').value=API;
   $('btnApi').onclick=()=>{ API=$('apiUrl').value.trim().replace(/\/+$/,'')||'http://127.0.0.1:8765'; $('apiUrl').value=API; try{localStorage.setItem('karaokeApi',API);}catch{} checkApi(); };
   let omode='karaoke';
+  function refreshState(){
+    const el=$('apiState');
+    if(backendOK){ el.textContent='後端已連線 ✔ 完整功能（抓音檔，可變調）'; el.style.color='var(--accent2)'; $('ytKeyRow').hidden=true; }
+    else if(YTKEY){ el.textContent='YouTube 內嵌模式 ✔ 可搜尋點歌（變調需後端）'; el.style.color='var(--gold)'; $('ytKeyRow').hidden=true; }
+    else{ el.textContent='請先貼上 YouTube API 金鑰（免費）即可線上點歌；或啟動電腦後端用完整功能'; el.style.color='var(--accent)'; $('ytKeyRow').hidden=false; }
+  }
   async function checkApi(){
-    try{ const r=await fetch(API+'/'); if(!r.ok) throw 0; $('apiState').textContent='已連線 ✔'; $('apiState').style.color='var(--accent2)'; }
-    catch{ $('apiState').textContent='未連線（請先在電腦執行 server.py，或填入雲端後端網址）'; $('apiState').style.color='var(--accent)'; }
+    try{ const r=await fetch(API+'/',{signal:AbortSignal.timeout(4000)}); if(!r.ok) throw 0; backendOK=true; }
+    catch{ backendOK=false; }
+    refreshState();
   }
   async function onlineSearch(){
     const q=$('oq').value.trim(); if(!q) return;
     $('oresults').innerHTML=''; $('ostatus').textContent='搜尋中…';
     try{
-      const list=await (await fetch(`${API}/api/search?q=${encodeURIComponent(q)}&mode=${omode}`)).json();
-      $('ostatus').textContent=`找到 ${list.length} 首，點選載入`;
+      let list;
+      if(backendOK){
+        list=await (await fetch(`${API}/api/search?q=${encodeURIComponent(q)}&mode=${omode}`)).json();
+      }else if(YTKEY){
+        list=await ytSearch(q);
+      }else{
+        $('ostatus').textContent='還沒設定：貼上 YouTube API 金鑰（免費）或啟動後端，就能線上點歌';
+        $('ytKeyRow').hidden=false; $('ytKey').focus(); return;
+      }
+      $('ostatus').textContent=`找到 ${list.length} 首，點選${backendOK?'載入':'播放'}`;
       list.forEach(x=>{
         const b=document.createElement('button');
         const img=document.createElement('img'); img.src=x.thumb; img.alt='';
         const d=document.createElement('div');
         const t=document.createElement('b'); t.textContent=x.title;
-        const s=document.createElement('span'); s.textContent=`${x.channel} · ${x.duration}`;
+        const s=document.createElement('span'); s.textContent=`${x.channel}${x.duration?' · '+x.duration:''}`;
         d.append(t,s); b.append(img,d);
-        b.onclick=()=>loadOnline(x);
+        b.onclick=()=> backendOK? loadOnline(x) : playYt(x);
         $('oresults').appendChild(b);
       });
-    }catch{ $('ostatus').textContent='搜尋失敗：後端未啟動或網路問題'; }
+    }catch(e){ $('ostatus').textContent='搜尋失敗：'+(e.message||'後端未啟動或網路問題'); }
   }
   async function loadOnline(x){
     $('ostatus').textContent=`⬇ 抓取「${x.title}」中，請稍候…`;
@@ -343,14 +480,17 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
       const blob=await (await fetch(`${API}/api/audio/${x.id}`)).blob();
       await loadAudio(blob, x.title);
       $('ostatus').textContent='✔ 已載入：'+x.title;
-      const clean=x.title.replace(/[\(\[【（].*?[\)\]】）]/g,'').replace(/伴奏|KTV|karaoke|instrumental|官方|MV|Official|Video|HD|4K/gi,'').replace(/\s+/g,' ').trim();
-      $('q').value=clean; searchLyrics();
+      autoLyrics(x.title);
     }catch(e){ $('ostatus').textContent='抓取失敗：'+(e.message||e); }
   }
   $('btnOnline').onclick=onlineSearch;
   $('oq').onkeydown=e=>{ if(e.key==='Enter') onlineSearch(); };
   $('modeSong').onclick=()=>{ omode='song'; $('modeSong').classList.add('on'); $('modeKtv').classList.remove('on'); };
   $('modeKtv').onclick=()=>{ omode='karaoke'; $('modeKtv').classList.add('on'); $('modeSong').classList.remove('on'); };
+  $('btnYtKey').onclick=saveYtKey;
+  $('ytKey').onkeydown=e=>{ if(e.key==='Enter') saveYtKey(); };
+  $('btnYtKeyShow').onclick=()=>{ $('ytKeyRow').hidden=false; $('ytKey').value=YTKEY; $('ytKey').focus(); };
+  $('btnToggleAdv').onclick=()=>{ $('advRow').hidden=!$('advRow').hidden; };
   checkApi();
 
   // ---------- 事件 ----------
@@ -362,7 +502,7 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
   $('btnBack').onclick=()=>seekTo(currentTime()-5);
   $('seek').oninput=()=>{ seekDragging=true; $('tCur').textContent=fmt($('seek').value/1000*duration); };
   $('seek').onchange=()=>{ seekDragging=false; seekTo($('seek').value/1000*duration); };
-  $('vol').oninput=()=>{ $('volVal').textContent=$('vol').value+'%'; if(player) player.volume.value=Tone.gainToDb($('vol').value/100); };
+  $('vol').oninput=()=>{ $('volVal').textContent=$('vol').value+'%'; if(ytMode&&yt&&yt.setVolume) yt.setVolume(+$('vol').value); else if(player) player.volume.value=Tone.gainToDb($('vol').value/100); };
   $('keyUp').onclick=()=>setKey(semitones+1);
   $('keyDown').onclick=()=>setKey(semitones-1);
   $('keyReset').onclick=()=>setKey(0);
@@ -378,7 +518,7 @@ textarea{width:100%;min-height:90px;background:var(--panel2);border:1px solid va
   $('btnOffsetP').onclick=()=>{ lyricOffset-=0.5; lastIdx=-1; renderLyrics(currentTime()); $('lrcStatus').textContent=`歌詞偏移 ${lyricOffset>0?'+':''}${lyricOffset.toFixed(1)}s`; };
   document.addEventListener('keydown',e=>{
     if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-    if(e.code==='Space'){ e.preventDefault(); if(player) playing?pause():play(); }
+    if(e.code==='Space'){ e.preventDefault(); if(player||ytMode) playing?pause():play(); }
     if(e.key==='ArrowUp') setKey(semitones+1);
     if(e.key==='ArrowDown') setKey(semitones-1);
   });
